@@ -2,12 +2,11 @@ import pygame
 
 
 class Food:
-    FOOD_DIMS = (50, 50)
 
-    def __init__(self, pos, screen):
+    def __init__(self, pos, food_dims):
+        self.food_dims = food_dims
         self.pos = pos
-        self.screen = screen
 
-    def draw(self):
-        pygame.draw.rect(self.screen, (128, 0, 0), pygame.Rect(*self.pos, *Food.FOOD_DIMS))
+    def draw(self, screen):
+        pygame.draw.rect(screen, (128, 0, 0), pygame.Rect(*self.pos, *self.food_dims))
 
