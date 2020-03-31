@@ -1,4 +1,5 @@
 from functools import reduce
+from math import inf
 
 import numpy as np
 
@@ -18,10 +19,18 @@ class Layer:
             raise InvalidNetType
         self.type = type
 
+    @property
+    def shape(self):
+        return self.array.shape
+
+    def cap(self, min_value=-inf, max_value=inf):
+        self.array = np.maximum(self.array, min_value * np.ones(shape=self.array.shape))
+        self.array = np.minimum(self.array, max_value * np.ones(shape=self.array.shape))
+
     def forward_pass(self, inp):
-        if inp == Layer.WEIGHTS:
+        if self.type == Layer.WEIGHTS:
             return np.matmul(inp, self.array)
-        elif inp == Layer.BIAS:
+        elif self.type == Layer.BIAS:
             return inp + self.array
 
     def mutate_with_normal(self, mean=0, std=1):
@@ -60,6 +69,13 @@ class Layer:
 
         return Layer(first_array, self.type), Layer(second_array, other.type)
 
+    def deepcopy(self):
+        return Layer(self.array, self.type)
+
+    @staticmethod
+    def array_randomise_normal(size, loc=0, scale=1):
+        return np.random.normal(loc=loc, scale=scale, size=size)
+
     def __str__(self):
         return str(self.array)
 
@@ -74,9 +90,20 @@ class NeuralNet:
     def add_layer(self, layer):
         self.net.append(layer)
 
+    def cap(self, min_values=None, max_values=None):
+        if not min_values:
+            min_values = [-inf for _ in range(len(self.net))]
+        if not max_values:
+            max_values = [inf for _ in range(len(self.net))]
+        if len(min_values) != len(max_values):
+            raise ValueError("Minimum and maximum values must be the same length")
+        for layer, min_value, max_value in zip(self.net, min_values, max_values):
+            layer.cap(min_value=min_value, max_value=max_value)
+
     def gen_output(self, inp):
         for layer in self.net:
             inp = layer.forward_pass(inp)
+        return inp
 
     def mutate_with_normal(self, mean=0, std=1):
         for layer in self.net:
@@ -94,6 +121,13 @@ class NeuralNet:
             new_other_net.add_layer(other_layer_to_add)
 
         return new_self_net, new_other_net
+
+    def deep_copy(self):
+        return NeuralNet([layer.deepcopy() for layer in self.net])
+
+    def add_randomised_layer(self, layer_type, input_neurons, num_output_neurons, loc=0, scale=1):
+        add_layer = Layer(Layer.array_randomise_normal((input_neurons, num_output_neurons), scale=scale, loc=loc), layer_type)
+        self.add_layer(add_layer)
 
     def __str__(self):
         return_str = ""
@@ -119,14 +153,16 @@ if __name__ == "__main__":
 
     second_net = NeuralNet([second_net_first_layer, second_net_second_layer])
 
-    print(first_net)
-    print()
-    print(second_net)
+    # print(first_net)
+    # print()
+    # print(second_net)
 
     third_net, fourth_net = first_net.cross_over(second_net, [[5], [6]])
 
-    print(third_net)
-    print()
-    print(fourth_net)
+    # print(third_net)
+    # print()
+    # print(fourth_net)
 
-    # print(first_layer.cross_over(second_layer, [[1, 2]])[0])
+    print(third_net)
+    third_net.cap([0.2 for _ in range(len(third_net.net))], [2.7 for _ in range(len(third_net.net))])
+    print(third_net)
