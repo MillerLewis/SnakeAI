@@ -33,8 +33,8 @@ class Layer:
         elif self.type == Layer.BIAS:
             return inp + self.array
 
-    def mutate_with_normal(self, mean=0, std=1):
-        self.array += np.random.normal(loc=mean, scale=std, size=self.array.shape)
+    def mutate_with_normal(self, loc=0, scale=1):
+        self.array += np.random.normal(loc=loc, scale=scale, size=self.array.shape)
 
     def cross_over(self, other, cross_over_indices):
         if self.array.shape != other.array.shape:
@@ -69,7 +69,7 @@ class Layer:
 
         return Layer(first_array, self.type), Layer(second_array, other.type)
 
-    def deepcopy(self):
+    def deep_copy(self):
         return Layer(self.array, self.type)
 
     @staticmethod
@@ -84,8 +84,8 @@ class Layer:
 
 
 class NeuralNet:
-    def __init__(self, net=[]):
-        self.net = net
+    def __init__(self, layers_list):
+        self.net = layers_list
 
     def add_layer(self, layer):
         self.net.append(layer)
@@ -100,14 +100,18 @@ class NeuralNet:
         for layer, min_value, max_value in zip(self.net, min_values, max_values):
             layer.cap(min_value=min_value, max_value=max_value)
 
+    def cap_one_value(self, min_value, max_value):
+        for layer in self.net:
+            layer.cap(min_value=min_value, max_value=max_value)
+
     def gen_output(self, inp):
         for layer in self.net:
             inp = layer.forward_pass(inp)
         return inp
 
-    def mutate_with_normal(self, mean=0, std=1):
+    def mutate_with_normal(self, loc=0, scale=1):
         for layer in self.net:
-            layer.mutate_with_normal(mean=mean, std=std)
+            layer.mutate_with_normal(loc=loc, scale=scale)
 
     def cross_over(self, other, cross_over_indices_list):
         new_self_net = NeuralNet()
@@ -123,10 +127,14 @@ class NeuralNet:
         return new_self_net, new_other_net
 
     def deep_copy(self):
-        return NeuralNet([layer.deepcopy() for layer in self.net])
+        return NeuralNet([layer.deep_copy() for layer in self.net])
 
-    def add_randomised_layer(self, layer_type, input_neurons, num_output_neurons, loc=0, scale=1):
-        add_layer = Layer(Layer.array_randomise_normal((input_neurons, num_output_neurons), scale=scale, loc=loc), layer_type)
+    def add_randomised_layer_weights(self, input_neurons, num_output_neurons, loc=0, scale=1):
+        add_layer = Layer(Layer.array_randomise_normal((input_neurons, num_output_neurons), loc=loc, scale=scale), Layer.WEIGHTS)
+        self.add_layer(add_layer)
+
+    def add_randomised_layer_bias(self, input_neurons, loc=0, scale=1):
+        add_layer = Layer(Layer.array_randomise_normal((input_neurons,), loc=loc, scale=scale), Layer.BIAS)
         self.add_layer(add_layer)
 
     def __str__(self):

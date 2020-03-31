@@ -19,20 +19,13 @@ class Game(TickUpdater):
         self.life_time = life_time
         self.ticks_since_eaten = 0
 
+    @property
+    def score(self):
+        return len(self.snake) ** 2 * self.ticks_since_start / 50
+
     def draw(self, screen):
         self.snake.draw(screen)
         self.food.draw(screen)
-
-    def update(self, screen_dims):
-        if self.snake.alive:
-            if self.ticks_since_eaten > self.life_time:
-                self.snake.alive = False
-            if super().update():
-                self.snake.move(screen_dims)
-                self.ticks_since_eaten += 1
-                if self.snake.pos == self.food.pos:
-                    self.eat(screen_dims)
-                return True
 
     def eat(self, screen_dims):
         self.ticks_since_eaten = 0
@@ -43,9 +36,16 @@ class Game(TickUpdater):
                                           self.food.food_dims[0],
                                           self.food.food_dims[1])
 
-    @property
-    def score(self):
-        return len(self.snake)  # ** 3 * self.ticks_since_start ** 0.33
+    def update(self, screen_dims):
+        if self.snake.alive:
+            if self.ticks_since_eaten > self.life_time:
+                self.snake.die()
+            if super().update():
+                self.snake.move(screen_dims)
+                self.ticks_since_eaten += 1
+                if self.snake.pos == self.food.pos:
+                    self.eat(screen_dims)
+                return True
 
     def reset(self):
         self.snake.pos = (self.dims[0] // 2, self.dims[1] // 2)

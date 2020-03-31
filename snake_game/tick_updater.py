@@ -14,5 +14,6 @@ class TickUpdater:
         self.time_elapsed_since_tick += dt
 
         if self.time_elapsed_since_tick >= self.tick_rate:
+            self.ticks_since_start += 1
             self.time_elapsed_since_tick = 0
             return True

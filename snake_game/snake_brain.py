@@ -13,21 +13,19 @@ from snake_game.neural_net import NeuralNet, Layer
 
 
 class GameWithNet(NeuralNet):
-    INPUT_NEURONS = 8
+    INPUT_NEURONS = 7
 
-    def __init__(self, game, net=[]):
+    def __init__(self, game, layers_list):
         self.game = game
-        super().__init__(net)
+        super().__init__(layers_list)
 
     def gen_inputs(self):
         return_array = np.array([self.game.snake.distance_to_death(self.game.dims),
-                         int(self.game.snake.is_food_left(self.game.food)),
-                         int(self.game.snake.is_food_right(self.game.food)),
-                         int(self.game.snake.is_food_ahead(self.game.food)),
-                         self.game.snake.heading[0] == 1,
-                         self.game.snake.heading[0] == -1,
-                         self.game.snake.heading[1] == 1,
-                         self.game.snake.heading == -1])
+                                 *self.game.snake.food_direction(self.game.food),
+                                 self.game.snake.heading[0] == 1,
+                                 self.game.snake.heading[0] == -1,
+                                 self.game.snake.heading[1] == 1,
+                                 self.game.snake.heading == -1])
 
         if return_array.shape[0] != GameWithNet.INPUT_NEURONS:
             raise Exception("You've made an error changing GameWithNet")
@@ -52,9 +50,13 @@ class GameWithNet(NeuralNet):
             self.game.snake.change_heading(Snake.LEFT)
         self.game.update(screen_dims)
 
-    def add_randomised_layer_snake(self, layer_type, num_output_neurons, loc=0, scale=1):
+    def add_randomised_layer_snake_weights(self, num_output_neurons, loc=0, scale=1.0):
         input_neurons = GameWithNet.INPUT_NEURONS if not self.net else self.net[-1].shape[1]
-        self.add_randomised_layer(layer_type, input_neurons, num_output_neurons, loc=loc, scale=scale)
+        self.add_randomised_layer_weights(input_neurons, num_output_neurons, loc=loc, scale=scale)
+
+    def add_randomised_layer_snake_bias(self, loc=0, scale=1.0):
+        input_neurons = GameWithNet.INPUT_NEURONS if not self.net else self.net[-1].shape[1]
+        self.add_randomised_layer_bias(input_neurons, loc=loc, scale=scale)
 
     @staticmethod
     def simulate_with_video(snake_brains, screen_width, screen_height, wait_til_close):
@@ -87,33 +89,33 @@ class GameWithNet(NeuralNet):
 
         return snake_brains
 
-    @staticmethod
-    def tournament_snake_brains(snake_brains, num_selected):
-        best_brains = []
 
-        brain_indicies = list(range(len(snake_brains)))
+    @staticmethod
+    def tournament_snake_brains(games_with_nets, num_selected):
+        best_brains = []
+        brain_indicies = list(range(len(games_with_nets)))
 
         while brain_indicies:
             brain_indicies_to_fight = []
             for _ in range(num_selected):
                 brain_indicies_to_fight.append(brain_indicies.pop(random.randint(0, len(brain_indicies) - 1)))
-
-            brain_fighting_scores = [snake_brains[index].game.score for index in brain_indicies_to_fight]
-
-            # print(snake_brains[91])
+            brain_fighting_scores = [games_with_nets[index].game.score for index in brain_indicies_to_fight]
             best_brains.append(
-                snake_brains[brain_indicies_to_fight[brain_fighting_scores.index(max(brain_fighting_scores))]]
+                games_with_nets[brain_indicies_to_fight[brain_fighting_scores.index(max(brain_fighting_scores))]]
             )
-            # best_brains.append(brains_to_fight.index(max([brain.game.score for brain in brains_to_fight])))
 
         return best_brains
-
 
     def draw(self, screen):
         self.game.draw(screen)
 
     def fresh_deep_copy(self):
-        return GameWithNet(self.game.fresh_deep_copy(), self.net.deep_copy())
+        game = self.game.fresh_deep_copy()
+        return GameWithNet(game, [layer.deep_copy() for layer in self.net])
+
+    def deep_copy(self):
+        game = self.game.deep_copy()
+        return GameWithNet(game, [layer.deep_copy() for layer in self.net])
 
     def __str__(self):
         return_str = ""
@@ -130,25 +132,57 @@ if __name__ == "__main__":
     tile_width, tile_height = 10, 10
     snake_starting_pos = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
     food_starting_pos = (50, 50)
-    TICK_RATE = 100
+    TICK_RATE = 1
 
-    game = Game(snake_starting_pos,
-                (tile_width, tile_height),
-                food_starting_pos,
-                (tile_width, tile_height),
-                (SCREEN_WIDTH, SCREEN_HEIGHT),
-                TICK_RATE)
+    NUM_SNAKES = 400
+    NUM_GENERATIONS = 100
 
-    game_with_net = GameWithNet(game)
-    game_with_net.add_randomised_layer_snake(Layer.WEIGHTS, 16, scale=1/25)
-    game_with_net.add_randomised_layer_snake(Layer.WEIGHTS, 4, scale=1/25)
+    TOURNAMENT_COUNT = 50
 
-    # print(game_with_net.net[0].shape)
+    all_games = []
+    for snake_counter in range(NUM_SNAKES):
+        game_counter = Game(snake_starting_pos,
+                            (tile_width, tile_height),
+                            food_starting_pos,
+                            (tile_width, tile_height),
+                            (SCREEN_WIDTH, SCREEN_HEIGHT),
+                            TICK_RATE)
 
-    # output = game_with_net.gen_output_for_game()
-    # print(output)
+        game_with_net = GameWithNet(game_counter, layers_list=[])
+        game_with_net.add_randomised_layer_snake_weights(16, loc=0, scale=1 / 25)
+        game_with_net.add_randomised_layer_snake_weights(4, loc=0, scale=1 / 25)
+        game_with_net.add_randomised_layer_snake_bias(loc=0, scale=1 / 25)
+        game_with_net.game.reset()
 
-    game_with_net.simulate_with_video([game_with_net], 400, 400, True)
+        all_games.append(game_with_net)
+
+    for gen_counter in range(NUM_GENERATIONS):
+        print("PERFORMING GENERATION {} / {}".format(gen_counter + 1, NUM_GENERATIONS))
+        curr_games = all_games[-NUM_SNAKES:]
+        GameWithNet.simulate_with_video(curr_games, 400, 400, False)
+
+        curr_games = GameWithNet.tournament_snake_brains(curr_games, TOURNAMENT_COUNT)
+        new_games_to_play = []
+
+        for game in curr_games:
+            for _ in range(TOURNAMENT_COUNT - 1):
+                new_game_capped_one = game.deep_copy()
+                new_game_capped_one.game.reset()
+                new_game_capped_one.mutate_with_normal(loc=0, scale=1 / 200)
+                new_game_capped_one.cap_one_value(-1, 1)
+
+                new_games_to_play += [new_game_capped_one]
+
+        all_games += new_games_to_play
+
+        print(GameWithNet.tournament_snake_brains(curr_games, len(curr_games))[0].game.score)
+
+    best_snake = GameWithNet.tournament_snake_brains(all_games, len(all_games))[0]
+    best_snake.game.reset()
+    best_snake.game.tick_rate = 100
+    GameWithNet.simulate_with_video([best_snake], *best_snake.game.dims, True)
+    # print(best_snake.game.score)
+
 
 class Brain:
     NUM_INPUTS = 8
