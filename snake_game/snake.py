@@ -140,15 +140,35 @@ class Snake:
         else:
             return math.inf
 
-    def distance_to_death(self, screen_dims):
+    def look_ahead_to_death(self, screen_dims, direction):
+        looking_at = [self.pos[0], self.pos[1]]
+        while True:
+            looking_at = [looking_at[0] + self.snake_dims[0] * direction[0], looking_at[1] + self.snake_dims[1] * direction[1]]
+            if looking_at in self.tail_pieces:
+                break
+
+            if looking_at[0] >= screen_dims[0] \
+                    or looking_at[0] <= screen_dims[0] \
+                    or looking_at[1] >= screen_dims[1] \
+                    or looking_at[1] <= screen_dims[1]:
+                break
+
+        return looking_at
+
+    def look_ahead_to_death_inverse(self, screen_dims, direction):
+        look_ahead = self.look_ahead_to_death(screen_dims, direction)
+        look_ahead = [val if val != 0 else 1 for val in look_ahead]
+        return [1 / look_ahead[0], 1 / look_ahead[1]]
+
+    def distance_to_death(self, screen_dims, heading):
         dist_to_death = None
-        if self.heading == Snake.RIGHT:
+        if heading == Snake.RIGHT:
             dist_to_death = screen_dims[0] - self.pos[0]
-        elif self.heading == Snake.LEFT:
+        elif heading == Snake.LEFT:
             dist_to_death = self.pos[0]
-        elif self.heading == Snake.UP:
+        elif heading == Snake.UP:
             dist_to_death = self.pos[1]
-        elif self.heading == Snake.DOWN:
+        elif heading == Snake.DOWN:
             dist_to_death = screen_dims[1] - self.pos[1]
 
         for tail_piece in self.tail_pieces[1:]:
@@ -156,6 +176,22 @@ class Snake:
 
         return dist_to_death
 
+    # def inverse_distance_to_pos_in_direction(self, direction, pos):
+    #     counter = 0
+    #     while True:
+    #         looking_at = [self.pos[0] + direction[0], self.pos[1] + direction[1]]
+    #         if looking_at ==:
+    #             break
+    #
+    #         if looking_at[0] >= screen_dims[0] \
+    #                 or looking_at[0] <= screen_dims[0] \
+    #                 or looking_at[1] >= screen_dims[1] \
+    #                 or looking_at[1] <= screen_dims[1]:
+    #             break
+    #
+    #         counter += 1
+    #
+    #     return [direction[0] * counter, direction[1] * counter]
 
 
 if __name__ == "__main__":
@@ -172,5 +208,6 @@ if __name__ == "__main__":
                 done = True
         screen.fill((0, 0, 0))
         test_snake.draw(screen)
+
 
         pygame.display.flip()

@@ -21,7 +21,7 @@ class Game(TickUpdater):
 
     @property
     def score(self):
-        return len(self.snake) ** 2 * self.ticks_since_start / 50
+        return len(self.snake) ** 2 * self.ticks_since_start
 
     def draw(self, screen):
         self.snake.draw(screen)
@@ -35,6 +35,26 @@ class Game(TickUpdater):
                                           screen_dims[1] - self.food.food_dims[1],
                                           self.food.food_dims[0],
                                           self.food.food_dims[1])
+
+    def look_ahead_to_food(self, direction):
+        looking_at = [self.snake.pos[0], self.snake.pos[1]]
+        while looking_at[0] <= self.dims[0] \
+                and looking_at[0] >= 0 \
+                and looking_at[1] <= self.dims[1] \
+                and looking_at[1] >= 0:
+            looking_at = [looking_at[0] + self.food.food_dims[0] * direction[0],
+                          looking_at[1] + self.food.food_dims[1] * direction[1]]
+            if looking_at == self.food.pos:
+                break
+        return looking_at
+
+    def look_ahead_to_food_inverse(self, direction):
+        look_ahead = self.look_ahead_to_food(direction)
+        look_ahead = [val if val != 0 else 1 for val in look_ahead]
+        return [1 / look_ahead[0], 1 / look_ahead[1]]
+
+    def food_direction(self):
+        return self.snake.food_direction(self.food)
 
     def update(self, screen_dims):
         if self.snake.alive:
@@ -55,7 +75,6 @@ class Game(TickUpdater):
         self.snake.colour = (255, 255, 255)
         self.snake.tail_pieces = [self.snake.pos]
 
-
     def deep_copy(self):
         return Game(
             self.snake.pos, self.snake.snake_dims, self.food.pos, self.food.food_dims, self.dims, self.tick_rate
@@ -65,6 +84,7 @@ class Game(TickUpdater):
         game = self.deep_copy()
         game.reset()
         return game
+
 
 if __name__ == "__main__":
     SCREEN_WIDTH, SCREEN_HEIGHT = 400, 400

@@ -39,6 +39,8 @@ class Layer:
     def cross_over(self, other, cross_over_indices):
         if self.array.shape != other.array.shape:
             raise ValueError("Layers need to be same shape")
+        elif self.type != other.type:
+            raise ValueError("Arrays to be crossover-ed need to be same type!")
 
         cross_over_indices = list(sorted(cross_over_indices, reverse=True))
         first_array = np.empty(self.array.shape)
@@ -69,6 +71,25 @@ class Layer:
 
         return Layer(first_array, self.type), Layer(second_array, other.type)
 
+    def cross_over_uniform_multiple(self, other, cross_over_prob):
+        if self.array.shape != other.array.shape:
+            raise ValueError("Layers need to be same shape!")
+        elif self.type != other.type:
+            raise ValueError("Arrays to be crossover-ed need to be same type!")
+        rand_array = np.random.uniform(low=0, high=1, size=self.shape)
+        return_array_self = np.zeros(self.array.shape)
+        return_array_other = np.zeros(self.array.shape)
+        for row_counter, (self_row, other_row, rand_row) in enumerate(zip(self.array, other.array, rand_array)):
+            for col_counter, (self_column, other_column, rand_col) in enumerate(zip(self_row, other_row, rand_row)):
+                if rand_col <= cross_over_prob:
+                    return_array_self[row_counter][col_counter] = other.array[row_counter][col_counter]
+                    return_array_other[row_counter][col_counter] = self.array[row_counter][col_counter]
+                else:
+                    return_array_self[row_counter][col_counter] = self.array[row_counter][col_counter]
+                    return_array_other[row_counter][col_counter] = other.array[row_counter][col_counter]
+
+        return Layer(return_array_self, self.type), Layer(return_array_other, other.type)
+
     def deep_copy(self):
         return Layer(self.array, self.type)
 
@@ -81,6 +102,7 @@ class Layer:
 
     def __repr__(self):
         return repr(self.array)
+
 
 
 class NeuralNet:
@@ -113,28 +135,52 @@ class NeuralNet:
         for layer in self.net:
             layer.mutate_with_normal(loc=loc, scale=scale)
 
-    def cross_over(self, other, cross_over_indices_list):
-        new_self_net = NeuralNet()
-        new_other_net = NeuralNet()
+    def cross_over_index_multiple(self, other, cross_over_indices_list):
+        new_self_net = NeuralNet([])
+        new_other_net = NeuralNet([])
         # list of multiple crossover indicies
         if len(self.net) != len(other.net) or len(self.net) != len(cross_over_indices_list):
             raise ValueError("Net's need to be same length and crossover indicies needs to be same length")
         for counter, (self_layer, other_layer) in enumerate(zip(self.net, other.net)):
-            self_layer_to_add, other_layer_to_add = self_layer.cross_over(other_layer, cross_over_indices_list[counter])
+            if self_layer.type != other_layer.type:
+                raise ValueError("Arrays to be crossover-ed need to be same type!")
+            self_layer_to_add, other_layer_to_add = self_layer.cross_over_index_multiple(other_layer, cross_over_indices_list[counter])
             new_self_net.add_layer(self_layer_to_add)
             new_other_net.add_layer(other_layer_to_add)
 
         return new_self_net, new_other_net
 
+    def cross_over_index_single(self, other, cross_over_index):
+        return self.cross_over_index_multiple(other, [cross_over_index for _ in range(len(self.net))])
+
+    def cross_over_uniform_multiple(self, other, cross_over_probs):
+        new_self_net = NeuralNet([])
+        new_other_net = NeuralNet([])
+        # list of multiple crossover indicies
+        if len(self.net) != len(other.net) or len(self.net) != len(cross_over_probs):
+            raise ValueError("Net's need to be same length!")
+        for counter, (self_layer, other_layer, cross_over_prob) in enumerate(zip(self.net, other.net, cross_over_probs)):
+            if self_layer.type != other_layer.type:
+                raise ValueError("Arrays to be crossover-ed need to be same type!")
+            self_layer_to_add, other_layer_to_add = self_layer.cross_over_uniform_multiple(other_layer, cross_over_prob)
+            new_self_net.add_layer(self_layer_to_add)
+            new_other_net.add_layer(other_layer_to_add)
+
+        return new_self_net, new_other_net
+
+    def cross_over_uniform_single(self, other, cross_over_prob):
+        return self.cross_over_uniform_multiple(other, [cross_over_prob for _ in range(len(self.net))])
+
     def deep_copy(self):
         return NeuralNet([layer.deep_copy() for layer in self.net])
 
     def add_randomised_layer_weights(self, input_neurons, num_output_neurons, loc=0, scale=1):
-        add_layer = Layer(Layer.array_randomise_normal((input_neurons, num_output_neurons), loc=loc, scale=scale), Layer.WEIGHTS)
+        add_layer = Layer(Layer.array_randomise_normal((input_neurons, num_output_neurons), loc=loc, scale=scale),
+                          Layer.WEIGHTS)
         self.add_layer(add_layer)
 
     def add_randomised_layer_bias(self, input_neurons, loc=0, scale=1):
-        add_layer = Layer(Layer.array_randomise_normal((input_neurons,), loc=loc, scale=scale), Layer.BIAS)
+        add_layer = Layer(Layer.array_randomise_normal((1,input_neurons), loc=loc, scale=scale), Layer.BIAS)
         self.add_layer(add_layer)
 
     def __str__(self):
@@ -151,13 +197,22 @@ class NeuralNet:
 
 
 if __name__ == "__main__":
+    # test = Layer(np.random.uniform(0, 1, size=(2, 4)), Layer.WEIGHTS)
+    # test_two = Layer(np.random.uniform(101, 105, size=(2, 4)), Layer.WEIGHTS)
+    # print(test)
+    # print(test_two)
+    # print()
+    # test, test_two = test.cross_over_uniform(test_two, 0.5)
+    # print(test)
+    # print(test_two)
+
     first_net_first_layer = Layer(np.zeros(shape=(4, 4)), type=Layer.WEIGHTS)
     first_net_second_layer = Layer(np.ones(shape=(3, 3)), type=Layer.WEIGHTS)
 
     first_net = NeuralNet([first_net_first_layer, first_net_second_layer])
 
     second_net_first_layer = Layer(2 * np.ones(shape=(4, 4)), type=Layer.WEIGHTS)
-    second_net_second_layer = Layer(3 * np.ones(shape=(3,3)), type=Layer.WEIGHTS)
+    second_net_second_layer = Layer(3 * np.ones(shape=(3, 3)), type=Layer.WEIGHTS)
 
     second_net = NeuralNet([second_net_first_layer, second_net_second_layer])
 
@@ -165,12 +220,14 @@ if __name__ == "__main__":
     # print()
     # print(second_net)
 
-    third_net, fourth_net = first_net.cross_over(second_net, [[5], [6]])
+    # third_net, fourth_net = first_net.cross_over(second_net, [[5], [6]])
+    third_net, fourth_net = first_net.cross_over_uniform_single(second_net, 0.5)
+
+
+    print(third_net)
+    print()
+    print(fourth_net)
 
     # print(third_net)
-    # print()
-    # print(fourth_net)
-
-    print(third_net)
     third_net.cap([0.2 for _ in range(len(third_net.net))], [2.7 for _ in range(len(third_net.net))])
-    print(third_net)
+    # print(third_net)
