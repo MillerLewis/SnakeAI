@@ -68,44 +68,6 @@ class Snake:
         elif direction == Snake.DOWN and self.heading != Snake.UP:
             self.heading = direction
 
-    def food_direction(self, food):
-        return [food.pos[0] - self.pos[0], food.pos[1] - self.pos[1]]
-
-    def is_food_ahead(self, food):
-        direction_to_food = self.food_direction(food)
-        direction_equal_to_heading = [sign(heading_dir) == sign(direction_dir) for
-                                      heading_dir, direction_dir in zip(self.heading, direction_to_food)]
-
-        return any(direction_equal_to_heading)
-
-    def is_food_left(self, food):
-        direction_to_food = self.food_direction(food)
-
-        normalised_direction = list(map(sign, direction_to_food))
-
-        if self.heading == Snake.LEFT:
-            return normalised_direction[1] == 1
-        elif self.heading == Snake.RIGHT:
-            return normalised_direction[1] == -1
-        elif self.heading == Snake.UP:
-            return normalised_direction[0] == -1
-        elif self.heading == Snake.DOWN:
-            return normalised_direction[0] == 1
-
-    def is_food_right(self, food):
-        direction_to_food = self.food_direction(food)
-
-        normalised_direction = list(map(sign, direction_to_food))
-
-        if self.heading == Snake.LEFT:
-            return normalised_direction[1] == 1
-        elif self.heading == Snake.RIGHT:
-            return normalised_direction[1] == -1
-        elif self.heading == Snake.UP:
-            return normalised_direction[0] == -1
-        elif self.heading == Snake.DOWN:
-            return normalised_direction[0] == 1
-
     def will_hit_self(self):
         for tail_piece in self.tail_pieces[1:]:
             if self.will_hit_tail_piece(tail_piece):
@@ -175,6 +137,12 @@ class Snake:
             dist_to_death = min(dist_to_death, self.dist_to_tail_piece(tail_piece))
 
         return dist_to_death
+
+    def distance_to_death_inverse(self, screen_dims, heading):
+        dist = self.distance_to_death(screen_dims, heading)
+        dist = 1 / dist if dist != 0 else dist
+        return dist
+
 
     # def inverse_distance_to_pos_in_direction(self, direction, pos):
     #     counter = 0

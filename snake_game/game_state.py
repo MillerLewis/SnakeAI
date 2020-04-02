@@ -7,9 +7,10 @@ import pygame
 
 from snake_game.tick_updater import TickUpdater
 
+sign = lambda x: 1 if x > 0 else -1 if x < 0 else 0
 
 class Game(TickUpdater):
-    def __init__(self, snake_pos, snake_dims, food_pos, food_dims, screen_dims, tick_rate, life_time=100):
+    def __init__(self, snake_pos, snake_dims, food_pos, food_dims, screen_dims, tick_rate, life_time=200):
         super().__init__(tick_rate)
 
         self.snake = Snake(snake_pos, snake_dims)
@@ -21,7 +22,7 @@ class Game(TickUpdater):
 
     @property
     def score(self):
-        return len(self.snake) ** 2 * self.ticks_since_start
+        return len(self.snake) * self.ticks_since_start
 
     def draw(self, screen):
         self.snake.draw(screen)
@@ -54,7 +55,64 @@ class Game(TickUpdater):
         return [1 / look_ahead[0], 1 / look_ahead[1]]
 
     def food_direction(self):
-        return self.snake.food_direction(self.food)
+        return [self.food.pos[0] - self.snake.pos[0], self.food.pos[1] - self.snake.pos[1]]
+
+    def food_direction_normalised(self):
+        dir_to_food = self.food_direction()
+        magnitude = sum([val ** 2 for val in dir_to_food]) ** 0.5
+        return [val / magnitude if magnitude != 0 else 0 for val in dir_to_food]
+
+    def food_direction_inverse(self):
+        return [1 / val if val != 0 else val for val in self.food_direction()]
+
+    def is_food_ahead(self):
+        direction_to_food = self.food_direction()
+        direction_equal_to_heading = [sign(heading_dir) == sign(direction_dir) for
+                                      heading_dir, direction_dir in zip(self.snake.heading, direction_to_food)]
+
+        return any(direction_equal_to_heading)
+
+    def is_food_left(self):
+        return int(self.snake.pos[0] >= self.food.pos[0])
+
+    def is_food_right(self):
+        return int(self.snake.pos[0] <= self.food.pos[0])
+
+    def is_food_up(self):
+        return int(self.snake.pos[1] <= self.food.pos[1])
+
+    def is_food_down(self):
+        return int(self.snake.pos[1] >= self.food.pos[1])
+
+    # def is_food_left(self):
+    #     direction_to_food = self.food_direction()
+    #
+    #     normalised_direction = list(map(sign, direction_to_food))
+    #
+    #     if self.snake.heading == Snake.LEFT:
+    #         return normalised_direction[1] == 1
+    #     elif self.snake.heading == Snake.RIGHT:
+    #         return normalised_direction[1] == -1
+    #     elif self.snake.heading == Snake.UP:
+    #         return normalised_direction[0] == -1
+    #     elif self.snake.heading == Snake.DOWN:
+    #         return normalised_direction[0] == 1
+
+    # def is_food_right(self):
+    #     direction_to_food = self.food_direction()
+    #
+    #     normalised_direction = list(map(sign, direction_to_food))
+    #
+    #     if self.snake.heading == Snake.LEFT:
+    #         return normalised_direction[1] == 1
+    #     elif self.snake.heading == Snake.RIGHT:
+    #         return normalised_direction[1] == -1
+    #     elif self.snake.heading == Snake.UP:
+    #         return normalised_direction[0] == -1
+    #     elif self.snake.heading == Snake.DOWN:
+    #         return normalised_direction[0] == 1
+
+
 
     def update(self, screen_dims):
         if self.snake.alive:

@@ -9,7 +9,12 @@ from snake_game.neural_net import NeuralNet
 
 
 class GameWithNet(NeuralNet):
-    INPUT_NEURONS = 5
+    INPUT_NEURONS = 8
+    paused = False
+    slow_down = False
+    slow_down_tick_speed = 200
+    regular_tick_speed = 1
+    showing_only_best = False
 
     def __init__(self, game, layers_list):
         self.game = game
@@ -18,9 +23,23 @@ class GameWithNet(NeuralNet):
 
     def gen_inputs(self):
         # TODO: Fix this, maybe get a proper distance to death, as in, find the shortest distance to death based off of all the possible headings
-        return_array = np.array([self.game.snake.distance_to_death(self.game.dims, self.game.snake.heading),
-                                 *self.game.snake.food_direction(self.game.food),
-                                 *self.game.snake.heading])
+        dir_to_food_inv = self.game.food_direction_inverse()
+        # return_array = np.array([100 * self.game.snake.distance_to_death_inverse(self.game.dims, self.game.snake.heading),
+        #                          100 * dir_to_food_inv[0], 100 * dir_to_food_inv[1]])
+
+
+        dir_to_food_normalised = self.game.food_direction_normalised()
+        return_array = np.array([
+            100 * self.game.is_food_up(),
+            100 * self.game.is_food_down(),
+            100 * self.game.is_food_right(),
+            100 * self.game.is_food_left(),
+            # 100 * dir_to_food_normalised[0], 100 * dir_to_food_normalised[1],
+            200 * self.game.snake.distance_to_death_inverse(self.game.dims, Snake.LEFT),
+            200 * self.game.snake.distance_to_death_inverse(self.game.dims, Snake.UP),
+            200 * self.game.snake.distance_to_death_inverse(self.game.dims, Snake.RIGHT),
+            200 * self.game.snake.distance_to_death_inverse(self.game.dims, Snake.DOWN)
+        ])
 
         if return_array.shape[0] != GameWithNet.INPUT_NEURONS:
             raise Exception("You've made an error changing GameWithNet")
@@ -65,16 +84,38 @@ class GameWithNet(NeuralNet):
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     done = True
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        GameWithNet.paused = not GameWithNet.paused
+                    if event.key == pygame.K_s:
+                        GameWithNet.slow_down = not GameWithNet.slow_down
+                        for snake_brain in snake_brains:
+                            snake_brain.game.tick_rate = GameWithNet.slow_down_tick_speed if GameWithNet.slow_down else GameWithNet.regular_tick_speed
+                    if event.key == pygame.K_b:
+                        GameWithNet.showing_only_best = not GameWithNet.showing_only_best
 
             screen.fill((0, 0, 0))
 
-            if print_inputs:
-                print(snake_brains[0].gen_inputs())
+            # if print_inputs:
+            #     print(snake_brains[0].gen_inputs())
+
+            best_snake = snake_brains[0]
+            if GameWithNet.showing_only_best:
+                for snake_brain in snake_brains[1:]:
+                    if snake_brain.game.score >= best_snake.game.score:
+                        best_snake = snake_brain
 
             for snake_brain in snake_brains:
                 one_alive = one_alive or snake_brain.game.snake.alive
-                snake_brain.update([screen_width, screen_height])
-                snake_brain.draw(screen)
+                if not GameWithNet.paused:
+                    snake_brain.update([screen_width, screen_height])
+
+                if GameWithNet.showing_only_best and snake_brain == best_snake:
+                    snake_brain.draw(screen)
+                elif not GameWithNet.showing_only_best:
+                    snake_brain.draw(screen)
+
+
             pygame.display.flip()
 
         return snake_brains
@@ -163,15 +204,15 @@ if __name__ == "__main__":
     tile_width, tile_height = 10, 10
     snake_starting_pos = (SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2)
     food_starting_pos = (50, 50)
-    TICK_RATE = 1
+    TICK_RATE = GameWithNet.regular_tick_speed
 
-    NUM_SNAKES = 100
-    NUM_GENERATIONS = 20
+    NUM_SNAKES = 200
+    NUM_GENERATIONS = 50
 
-    TOURNAMENT_COUNT = 5
+    TOURNAMENT_COUNT = 2
 
-    MUTATION_RATE = 1 / 400
-    CROSS_OVER_RATE = 0.20
+    MUTATION_RATE = 1 / 200
+    CROSS_OVER_RATE = 0.5
 
     all_games = []
     for snake_counter in range(NUM_SNAKES):
@@ -183,15 +224,17 @@ if __name__ == "__main__":
                             TICK_RATE)
 
         game_with_net = GameWithNet(game_counter, layers_list=[])
-        game_with_net.add_randomised_layer_snake_weights(32, loc=0, scale=1 / 25)
+        game_with_net.add_randomised_layer_snake_weights(64, loc=0, scale=1 / 25)
         game_with_net.add_randomised_layer_snake_bias(loc=0, scale=1 / 25)
-        game_with_net.add_randomised_layer_snake_weights(32, loc=0, scale=1 / 25)
+        game_with_net.add_randomised_layer_snake_weights(64, loc=0, scale=1 / 25)
         game_with_net.add_randomised_layer_snake_bias(loc=0, scale=1 / 25)
         game_with_net.add_randomised_layer_snake_weights(4, loc=0, scale=1 / 25)
         game_with_net.add_randomised_layer_snake_bias(loc=0, scale=1 / 25)
         game_with_net.game.reset()
 
         all_games.append(game_with_net)
+
+    best_snake, best_snake_score = None, 0
 
     for gen_counter in range(NUM_GENERATIONS):
         print("PERFORMING GENERATION {} / {}".format(gen_counter + 1, NUM_GENERATIONS))
@@ -202,6 +245,8 @@ if __name__ == "__main__":
         new_games_to_play = []
 
         for game in curr_games:
+            if game.game.score >= best_snake_score:
+                best_snake, best_snake_score = game.deep_copy(), game.game.score
             for _ in range(TOURNAMENT_COUNT):
                 new_game_capped_one = game.deep_copy()
                 new_game_capped_one.game.reset()
@@ -210,10 +255,12 @@ if __name__ == "__main__":
 
                 new_games_to_play += [new_game_capped_one]
 
+        print(best_snake_score)
+
         new_games_to_play = GameWithNet.cross_over_uniform_brains(new_games_to_play, CROSS_OVER_RATE)
         all_games += new_games_to_play
 
-    best_snake = GameWithNet.tournament_snake_brains(all_games, len(all_games))[0]
+    # best_snake = GameWithNet.tournament_snake_brains(all_games, len(all_games))[0]
     best_snake.game.reset()
-    best_snake.game.tick_rate = 100
+    best_snake.game.tick_rate = 50
     GameWithNet.simulate_with_video([best_snake], *best_snake.game.dims, True, True)
